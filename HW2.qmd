@@ -1,0 +1,305 @@
+---
+title: "EDS 223 - Homework 2"
+subtitle: Exploring pattern of enviroment justice
+author: Amapola Garcia
+date: October 20, 2026
+execute: 
+  eval: true
+html:
+editor_options: 
+  chunk_output_type: console
+warning: false
+---
+
+Background
+- A recent study found that redlining has not only affected the enviroments communities are exposed to, it has also shaped pedestrian saftey outcomes decades later. Analyzing over 52,000 pedestrians fatalities across 202 U.S. cities from 2010 - 2019, Taylor and co-authors found a clear pattern: as HOLC grades deteriorated from A (Best) to D (Hazardous), pedestrian fatality rates increased systematically. Census tracts graded “D” experienced 2.6 times the rate of pedestrian deaths compared to “A”-graded areas. These findings highlight the need for targeted pedestrian infrastructure investments in historically redlined neighborhoods to address longstanding safety disparities.
+more of this stude [PMC]()
+
+# Setup
+
+## Data
+
+```{r}
+#| message: false
+#| warning: false
+
+#install packages
+install.packages(
+  c("spData", "sf", "tmap", "jsonlite", "gt"),
+  repos = "https://cloud.r-project.org"
+)
+```
+
+## Upload Libraries
+
+```{r}
+library(sf)
+library(tmap)
+library(tidyverse)
+library(spData)
+library(jsonlite)
+library(gt)
+```
+
+# Part 1: Legacy of redlining in current enviormental (in)justice:
+Explore the historical redlining in Los Angeles and its legacy on present-day enviromental justice
+
+### EJScreen
+- Copied from HW1: The data details fromm EJScreen in order to get LA County, CA
+
+```{r}
+# reading the EJScreen data
+ejscreen <- sf::st_read(here::here("data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb")) 
+
+# filter California
+california <- ejscreen |> 
+  dplyr::filter(ST_ABBREV  == "CA")
+
+# filter to Los Angeles County
+los_angeles <- ejscreen |>
+  dplyr::filter(CNTY_NAME %in% c("Los Angeles County"))
+```
+
+### Bike and Pedestrian Crash Reports
+```{r}
+# crashes data file
+# read csv with sf_st_read()
+#check to see if they have the same coordinate reference systems
+crashes <- read_csv(here::here("data/SWITRS_LA/Crashes.csv")) |> 
+  as_tibble() |>
+  drop_na(POINT_X) |>
+  drop_na(POINT_Y) |>
+  st_as_sf(coords = c("POINT_X", "POINT_Y"), crs = 4326,
+  remove= FALSE) |> # Ser crs to 4326 so point calibrate to lat and lad
+  st_transform(crs = st_crs(los_angeles)) # transform CRS to match EJScreen to LA dataset
+```
+
+### HOLC Redlining
+```{r}
+# holc data file
+#use sf::st_read() to read the Json file , Lab 1
+holc <- sf::st_read(here::here("data/mapping-inequality/mapping-inequality-los-angeles.json"))
+
+```
+
+- set the CRS for all dataset
+```{r}
+# check CRS for each dataset
+st_crs(los_angeles)
+st_crs(holc)
+st_crs(crashes)
+```
+
+## WARNING messages to check CRS
+
+```{r}
+#Warning message to check if CRS of datasets match
+if(st_crs(los_angeles) == st_crs(holc)) {
+  print("CRS matches")
+} else {
+  warning("CRS does not match")
+}
+
+```
+
+```{r}
+#WARNING message to check if CRS of datasets match
+if(st_crs(los_angeles) == st_crs(crashes)) {
+  print("CRS matches")
+} else {
+  warning("CRS does not match")
+}
+```
+
+## Transform HOLC into the same CRS as EJScreen
+- Transfrom the `holc` dataset into the same crs as `ejscreen` dataset
+```{r}
+#transform holc to match los_angeles crs
+holc <- st_transform(holc, crs = st_crs(los_angeles))
+
+# Boolean check to see if crs match between the two datasets
+st_crs(los_angeles) == st_crs(holc)
+
+st_crs(los_angeles) == st_crs(crashes)
+```
+
+
+1. **Create a map of historical redlining neighborhoods, including:**
+
+- For each of these cities, they produced maps showing those grades. Neighborhoods they deemed "best" and safe investments were given grades:
+* A > "Best"(A = green)
+* B > "" (B = blue)
+* C > "" (C = yellow)
+* D > "hazard" (D = red)
+
+- [ ] Neighborhoods colored by HOLC grade
+- [ ] An appropiate base map
+- [ ] A clear title and Legend
+
+## Palette for maps and graphs
+```{r}
+#Pallette for grades of holc datasets
+holc_palette <- c(
+  "A" = "#2D7F54",
+  "B" = "#2B7AA1",
+  "C" = "#D9A723",
+  "D" = "#C22B38",
+  "No HOLC Grade" = "#D2D2D2",
+  "Missing" = "#7E8A94"
+)
+```
+
+```{r}
+#Set tmap mode to static plotting
+tmap_mode("plot")
+#Load a semi-transparent OpenStreetMap basemap
+tm_basemap("OpenStreetMap", alpha = 0.6) +
+  tm_shape(holc) + #define the historical HOLC spatial dataset as primary layer shape
+# Render the polygons using the historical grading attribute data
+  tm_polygons(
+    #size = 0.8,
+    fill = "grade",
+    title = "HOLC Residential Grade of Percieved Risk",
+    palette = holc_palette,
+    #transparency and outline config
+    fill_alpha = 0.65, #softens polyons fills to keep underlying streets
+    col = "grade", #Dynamic stylingL assigns border lines to the same color as the grade fill
+    col_alpha = 1.0, # Adds gentle transparency to boundaries so shapes blend seamlessly
+    lwd = 0.8 # thins the outline to keep dense
+    ) +
+    tm_title("Historical Redlining in Los Angeles, California") +
+    tm_compass(position = c("bottom", "right")) +
+    tm_scalebar(position = c("bottom", "right"))
+
+```
+
+## Create a table summarizing: Census block groups that fall within each HOLC grade in Los Angeles,CA
+- [ ] the percentage of census block groups that fall within each HOLC grade
+- [ ] Also include the percent of census black groups that don’t fall within a HOLC grade in your table
+- [ ] Once you combine and no longer need the geometries, you can use `st_drop_geometry`
+```{r}
+# left join EJ Screen Los Angeles County dataset with Holc dataset
+join_ejscreen_holc <- st_join(los_angeles, holc)
+
+# Drop geometry to act as a tidyverse dataframe
+ejscreen_holc <- st_drop_geometry(join_ejscreen_holc)
+
+#Summary table of percentage of census block groups that fall within each HOLC grade
+ejscreen_holc_percent <- ejscreen_holc |> 
+  mutate(
+    grade = ifelse(is.na(grade), "No HOLC Grade", grade)
+  ) |> 
+  count(grade) |> 
+  mutate(percent = (n / sum(n)) * 100) |> 
+  select(-n) |> 
+  rename(Grade = grade, Percent = percent)
+
+gt(ejscreen_holc_percent) |> 
+  tab_header(title = 'Percent of Census Block Groups Within Each HOLC grade in Los Angeles,CA')
+```
+
+3. Create at least two visualizations summarizing current conditions (from the EJScreen data) within HOLC grades using the mean of the following variables (you may combine variables in a single visualization or look at a single variable per plot)
+- [] % low-income
+- [] percentile for Particulate Matter 2.5
+- [] use `ggplot` for your visualization! You will first need to calculate mean of each variable grouped by HOLC grade.
+
+```{r}
+#Percent of Low life Expectancy by Grade
+life_exp_grade <- ejscreen_holc |> 
+  group_by(grade) |> 
+  drop_na(grade) |> 
+  summarise(life_exp = mean(LIFEEXPPCT, na.rm = TRUE)*100)
+
+gt(life_exp_grade)
+```
+
+### Average % expectancy visualization
+ ```{r}
+ ggplot(life_exp_grade, mapping = aes(x = grade, y = life_exp, fill = grade)) +
+  geom_col() +
+  labs (
+    title = "Average % of Life Expectancy by HOLC Grade in Los Angeles, CA",
+    x = "HOLC Grade",
+    y = "Percent",
+    fill = "HOLC Grade"
+  ) +
+    scale_fill_manual(values = holc_palette)
+ ```
+
+### Average % Low Income by HOLC Grade in Los Angeles,CA
+```{r}
+#Percent of Low income Households by grade
+low_income_grade <- ejscreen_holc |> 
+  group_by(grade) |> 
+  drop_na(grade) |> 
+  summarise(low_income = (mean(LOWINCPCT)*100), na.rm = TRUE)
+
+gt(low_income_grade)
+```
+
+```{r}
+ggplot(low_income_grade, mapping = aes(x = grade, y = low_income, fill = grade)) + geom_col() +
+  labs(
+    title = "Average % of Low Income by HOLC Grade in Los Angeles, CA",
+    x = 'HOLC Grade',
+    y = 'Percent',
+    fill = 'HOLC Grade',
+  ) +
+    scale_fill_manual(values = holc_palette)
+```
+
+
+4. Write a brief paragraph reflecting on these results
+- [] Interpret the patterns you observe in your results
+- [] Discuss potential relationships between historical redlining grades and current environmental/socioeconomic conditions
+
+## Result Summary
+
+Redlined neighborhoods refer to areas historically designated as high-risk for mortgage lending. This designation resulted from discriminatory policies that targeted residents based on; race, ethnicity, or socioeconomic status/. Such inequitable practices contributed to enviromental injustice, as redlined neighborhoods frequently experienced disproportionate enviromental challenges. These neighborhoods faced greater enviromental burdens, as shown by EJScreen data on low life expectancy and the prevalence of low-incomme households. The data indicate that households in hazardous neighborhoods. The data indicates that households in this "red zone" are classified as 'GRADE D' exhibit a higher percentage of low-income households at 39.19 % and a higher proportion of residents with low life expectancy percentage of (17.97).By comparison, Grade A neighborhoods, which were seen as the best for lending and investment, had the lowest share of low-income households at 14.98%. The lower life expectancy in redlined neighborhoods may be due to several environmental factors including closer proximity to toxic waste sites, higher levels of pollution, along with less protection from environmental contaminants.Thus, the effects of redlining still cause differences in health and income in these communities til this day.
+
+## Part 2: Legacy of redlining in pedestrian and bike accidents:
+```{r}
+# Filter to columns to describe the number of pedestrian and Bicycle accidents
+select_crashes <- crashes |> 
+  select(POINT_X, POINT_Y, PEDESTRIAN_ACCIDENT, BICYCLE_ACCIDENT)
+
+#Classifying NAs as No Accident in Pedestrian Accident and Bicycle
+select_crashes <- select_crashes |> 
+  mutate(PEDESTRIAN_ACCIDENT = ifelse(is.na(PEDESTRIAN_ACCIDENT), "No accident", PEDESTRIAN_ACCIDENT)) |> 
+  mutate(BICYCLE_ACCIDENT = ifelse(is.na(BICYCLE_ACCIDENT), "No accident", BICYCLE_ACCIDENT))
+
+# Join datasets and drop geometry
+join_crashes_holc <- st_join(select_crashes, holc) |> 
+  st_drop_geometry()
+
+#Percent table describing the percent of observation within each HOLC Grade
+crashes_holc_percent <- join_crashes_holc |> 
+  mutate(grade = ifelse(is.na(grade), "No HOLC Grade", grade)) |>
+  filter(PEDESTRIAN_ACCIDENT == "Y" | BICYCLE_ACCIDENT == "Y") |>
+  count(grade) |> 
+  mutate(percent = (n / sum(n))*100) |> 
+  select(-n) |>
+  rename(Grade = grade, Percent = percent)
+
+  #Table
+  gt(crashes_holc_percent) |>
+    tab_header(title = 'Percent of Pedestrian and Bicycle Accidents within Each HOLC grade in Los Angeles, CA')
+```
+
+
+```{r}
+#Graph of pedestrian and Bicycle accident per HOLC grade in Los Angeles,CA
+ggplot(crashes_holc_percent, aes(x = Grade, y = Percent, fill = Grade)) +
+  geom_col() +
+  labs(
+    title = "Pedestrian and Bicycle Accidents per HOLC Grade in Los Angeles, CA",
+    x = 'HOLC Grade',
+    y = 'Percent',
+    fill = 'HOLC Grade'
+  ) +
+    scale_fill_manual(values = holc_palette)
+```
+
+## Result Summary
+
+The graph above shows that neighborhoods with a 'GRADE C' with a 27% and 'GRADE D' with a 14% had higher percentages of pedestrians/bike accidents while those in 'GRADE A' and 'GRADE B' had lower percentages of 1.0% and 6%. Thus, these results suggest that these neighborhoods labeled hazardous or declining may have underlying conditions that make pedestrians/ bike accidents more likley to happen. Things like poor maintained public roads, sidewalks, and bicycle lanes infrastructures may be a contributing factor.
