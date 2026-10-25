@@ -1,5 +1,7 @@
 #data
-data/
+/data/
+/data-hw2/
+.DS_Store
 
 # History files
 .Rhistory
