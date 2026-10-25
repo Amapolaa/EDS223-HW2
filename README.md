@@ -12,6 +12,4 @@ Downloading and installing steps:
 EDS223-HW2
 │   README.md
 │   HW2.qmd
-│       
-│
-└───.gitignore
+│  .gitignore
