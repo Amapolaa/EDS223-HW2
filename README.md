@@ -52,3 +52,15 @@ EDS223-HW2
 * ejscreen","EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb
 * mapping-inequality/mapping-inequality-los-angeles.json
 * crashes.csv
+
+
+## References and Acknowledgement
+Gee, G. C. (2008). A multilevel analysis of the relationship between institutional and individual racial discrimination and health status. American journal of public health, 98(Supplement_1), S48-S56.↩︎
+
+Nardone, A., Rudolph, K. E., Morello-Frosch, R., & Casey, J. A. (2021). Redlines and greenspace: the relationship between historical redlining and 2010 greenspace across the United States. Environmental health perspectives, 129(1), 017006.↩︎
+
+Hoffman, J. S., Shandas, V., & Pendleton, N. (2020). The effects of historical housing policies on resident exposure to intra-urban heat: a study of 108 US urban areas. Climate, 8(1), 12.↩︎
+
+Taylor, N. L., Porter, J. M., Bryan, S., Harmon, K. J., & Sandt, L. S. (2023). Structural racism and pedestrian safety: Measuring the association between historical redlining and contemporary pedestrian fatalities across the United States, 2010–2019. American Journal of Public Health, 113(4).↩︎
+
+Robert K. Nelson, LaDale Winling, Richard Marciano, Nathan Connolly, et al., “Mapping Inequality,” American Panorama, ed. Robert K. Nelson and Edward L. Ayers, accessed October 17, 2023, https://dsl.richmond.edu/panorama/redlining/↩︎
