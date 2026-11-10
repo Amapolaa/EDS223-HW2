@@ -93,21 +93,19 @@ st_crs(crashes)
 ## WARNING messages to check CRS
 
 ```{r}
+#### RESUBMISSION ######### 
 #Warning message to check if CRS of datasets match
 if(st_crs(los_angeles) == st_crs(holc)) {
   print("CRS matches")
 } else {
-  warning("CRS does not match")
+  warning("CRS mismatch: HOLC polygons need to be transformed.")
 }
 
-```
-
-```{r}
-#WARNING message to check if CRS of datasets match
+#WARNING message check to confirm crashes use the Los Angeles CRS
 if(st_crs(los_angeles) == st_crs(crashes)) {
   print("CRS matches")
 } else {
-  warning("CRS does not match")
+  warning("CRS mismatch: Crash points need to be transformed")
 }
 ```
 
@@ -117,7 +115,7 @@ if(st_crs(los_angeles) == st_crs(crashes)) {
 #transform holc to match los_angeles crs
 holc <- st_transform(holc, crs = st_crs(los_angeles))
 
-# Boolean check to see if crs match between the two datasets
+# Keep reports marked as pedestrian or bicycle accidents
 st_crs(los_angeles) == st_crs(holc)
 
 st_crs(los_angeles) == st_crs(crashes)
@@ -259,45 +257,75 @@ Redlined neighborhoods refer to areas historically designated as high-risk for m
 
 ## Part 2: Legacy of redlining in pedestrian and bike accidents:
 ```{r}
-# Filter to columns to describe the number of pedestrian and Bicycle accidents
+#RESUBMISSION#############
+
+# Filter for bike and pedestrian crashes
 select_crashes <- crashes |> 
-  select(POINT_X, POINT_Y, PEDESTRIAN_ACCIDENT, BICYCLE_ACCIDENT)
+  filter(
+    PEDESTRIAN_ACCIDENT == "Y" |
+      BICYCLE_ACCIDENT == "Y"
+  ) |>
+    select(
+  #then look at the difference between NAs between Point_x/Point_y and Long/lat
+  POINT_X,
+  POINT_Y,
+  PEDESTRIAN_ACCIDENT,
+  BICYCLE_ACCIDENT
+  )
 
-#Classifying NAs as No Accident in Pedestrian Accident and Bicycle
-select_crashes <- select_crashes |> 
-  mutate(PEDESTRIAN_ACCIDENT = ifelse(is.na(PEDESTRIAN_ACCIDENT), "No accident", PEDESTRIAN_ACCIDENT)) |> 
-  mutate(BICYCLE_ACCIDENT = ifelse(is.na(BICYCLE_ACCIDENT), "No accident", BICYCLE_ACCIDENT))
+#WARNING MESSAGE: in case final crash and HOLC polygons still have different crs values
+if (st_crs(select_crashes) == st_crs(holc)) {
+  print("CRS check passed.")
+} else {
+  stop("The crash data and HOLC map need the same CRS before joining.")
+}
 
-# Join datasets and drop geometry
-join_crashes_holc <- st_join(select_crashes, holc) |> 
-  st_drop_geometry()
+#Now check to see how many crash reports do not intersect with any HOLC polygons
+holc_match <- st_intersects(select_crashes,holc)
+unmatched_reports <- sum(length(holc_match) == 0)
 
-#Percent table describing the percent of observation within each HOLC Grade
-crashes_holc_percent <- join_crashes_holc |> 
-  mutate(grade = ifelse(is.na(grade), "No HOLC Grade", grade)) |>
-  filter(PEDESTRIAN_ACCIDENT == "Y" | BICYCLE_ACCIDENT == "Y") |>
+#then join crash points to HOLC polygons and keep only intersecting reports
+crashes_in_holc <- st_join(
+  select_crashes,
+  holc |> 
+    select(grade),
+    join = st_intersects,
+    left = FALSE
+  ) |> 
+    st_drop_geometry()
+
+#count accidents reports in each HOLC grade
+accidents_by_grade <- crashes_in_holc |> 
   count(grade) |> 
-  mutate(percent = (n / sum(n))*100) |> 
-  select(-n) |>
-  rename(Grade = grade, Percent = percent)
+  #calculate each grade percent of reports matched to HOLC polygons
+  mutate(percent = n / sum(n) * 100)
 
-  #Table
-  gt(crashes_holc_percent) |>
-    tab_header(title = 'Percent of Pedestrian and Bicycle Accidents within Each HOLC grade in Los Angeles, CA')
+#this will prepare the percentage table
+crashes_holc_percent <- accidents_by_grade |>
+  select(-n) |> #this will remove  the n column after calculating the percentages
+  rename(
+    grade = grade,
+    percent = percent,
+  )
+#visualize the table
+gt(crashes_holc_percent) |>
+  tab_header(title = 'Percent of Pedestrian and Bicycle Accidents Reports by HOLC Grade')
+
 ```
 
-
+## Let's visualize it
 ```{r}
 #Graph of pedestrian and Bicycle accident per HOLC grade in Los Angeles,CA
-ggplot(crashes_holc_percent, aes(x = Grade, y = Percent, fill = Grade)) +
+ggplot(accidents_by_grade, aes(x = grade, y = percent, fill = grade)) +
   geom_col() +
+  scale_fill_manual(values = holc_palette) +
   labs(
-    title = "Pedestrian and Bicycle Accidents per HOLC Grade in Los Angeles, CA",
+    title = "Pedestrian and Bicycle Accidents per HOLC Grade",
     x = 'HOLC Grade',
-    y = 'Percent',
+    y = 'Percent of reports within HOLC mapped area',
     fill = 'HOLC Grade'
-  ) +
-    scale_fill_manual(values = holc_palette)
+  ) 
+   
 ```
 
 ## Result Summary
